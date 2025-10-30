@@ -1,0 +1,6 @@
+streamlit
+geemap
+langchain-anthropic
+langchain-core
+folium
+earthengine-api
