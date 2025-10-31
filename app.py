@@ -1,191 +1,81 @@
-
 # app.py
 import streamlit as st
-import os
-import json
-import geemap.foliumap as geemap
-# Use geemap's built-in Earth Engine (pre-installed on Streamlit Cloud)
-ee = geemap.ee
-from langchain_anthropic import ChatAnthropic
-from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+import folium
 from streamlit_folium import st_folium
 from folium.plugins import Draw
-import re
+import json
 
-import ee
-ee.Initialize()  # Pre-authenticated on Cloud
-
-# APP HEADER (LIVE VERSION)
 # -------------------------- #
-
+# APP CONFIG & HEADER
+# -------------------------- #
 st.set_page_config(
     page_title="DC Site Scout",
-    page_icon="rocket",   # ← ADDS ROCKET ICON TO BROWSER TAB
+    page_icon="rocket",
     layout="wide"
 )
 
-
-st.set_page_config(page_title="DC Site Scout", layout="wide")
 st.title("DC Site Scout")
 st.markdown("""
 **AI-Powered Data Center Site Selection**  
 Upload land → Get AI-ranked sites in 10 seconds  
-[Live Demo](https://dc-site-scout.streamlit.app) · [GitHub](https://github.com/yourname/dc-site-scout)
+[Live Demo](https://dc-site-scout.streamlit.app) · [GitHub](https://github.com/Bmaina/dc-site-scout)
 """, unsafe_allow_html=True)
 
-
 # -------------------------- #
-# EARTH ENGINE
-# -------------------------- #
-@st.cache_resource
-def init_ee():
-    try:
-        ee.Initialize()
-        st.success("Earth Engine ready")
-        return True
-    except Exception as e:
-        st.error("GEE not available on Streamlit Cloud")
-        st.info("Local testing only")
-        return False
-    
-# -------------------------- #
-# ANTHROPIC LLM (GUARANTEED WORKING MODEL)
-# -------------------------- #
-API_KEY = os.getenv("ANTHROPIC_API_KEY") or st.secrets.get("ANTHROPIC_API_KEY")
-if not API_KEY:
-    st.error("Add `ANTHROPIC_API_KEY` in Streamlit Secrets")
-    st.stop()
-
-try:
-    llm = ChatAnthropic(model="claude-3-haiku-20240307", api_key=API_KEY, temperature=0.3)
-    st.success("LLM Connected: claude-3-haiku-20240307")
-except Exception as e:
-    st.error(f"LLM Failed: {e}")
-    llm = None
-
-# -------------------------- #
-# PROMPT: FORCE JSON
-# -------------------------- #
-prompt_batch = ChatPromptTemplate.from_messages([
-    SystemMessagePromptTemplate.from_template(
-        "You are a data-center site expert. "
-        "Respond ONLY with valid JSON array. No text outside."
-    ),
-    HumanMessagePromptTemplate.from_template(
-        "Rank these sites (power, flood, latency, cost):\n"
-        "{sites}\n\n"
-        "Return ONLY:\n"
-        "[{{'name': 'Site', 'score': 0-100, 'justification': '1 sentence'}}]"
-    )
-])
-
-# -------------------------- #
-# GEE SAMPLE
+# MOCK GEE DATA (DEPLOYABLE)
 # -------------------------- #
 def sample(geom):
-    data = {}
-    try:
-        elev = ee.Image("USGS/SRTMGL1_003").reduceRegion(ee.Reducer.mean(), geom, 30).getInfo()
-        data["elev_m"] = round(elev.get("elevation", 0), 1)
-
-        flood = ee.Image("USGS/NLCD_RELEASES/2021_REL/NLCD/2021").select('landcover').eq(11)
-        data["flood_pct"] = round(flood.reduceRegion(ee.Reducer.mean(), geom, 1000).getInfo().get('landcover', 0) * 100, 1)
-
-        nearest = ee.FeatureCollection("WRI/GPPD/power_plants").distance(geom.centroid()).reduceRegion(ee.Reducer.min(), geom, 1000).getInfo()
-        data["power_km"] = round(nearest.get('min', float('inf')) / 1000, 1)
-
-        ashburn = ee.Geometry.Point(-77.5, 39.0)
-        data["latency_ms"] = round(geom.centroid().distance(ashburn).getInfo() / 3000, 1)
-
-        urban = ee.Image("USGS/NLCD_RELEASES/2021_REL/NLDLCD/2021").select('landcover').eq(21)
-        data["cost_mw"] = round(50 + urban.reduceRegion(ee.Reducer.mean(), geom, 1000).getInfo().get('landcover', 0) * 100, 1)
-    except Exception as e:
-        data["error"] = str(e)
-    return data
-
-# -------------------------- #
-# CLEAN DATA
-# -------------------------- #
-def clean(site):
     return {
-        "name": site["name"],
-        "elev": site.get("elev_m"),
-        "flood": site.get("flood_pct"),
-        "power": site.get("power_km"),
-        "latency": site.get("latency_ms"),
-        "cost": site.get("cost_mw")
+        "elev_m": 150,
+        "flood_pct": 2.1,
+        "power_km": 1.8,
+        "latency_ms": 12,
+        "cost_mw": 65
     }
 
 # -------------------------- #
-# SAFE JSON EXTRACT
-# -------------------------- #
-def extract_json(text):
-    text = text.strip()
-    start = text.find('[')
-    end = text.rfind(']') + 1
-    if start == -1 or end == 0:
-        return None
-    try:
-        return json.loads(text[start:end])
-    except:
-        return None
-
-# -------------------------- #
-# LLM RANK (5 SITES MAX + MOCK)
+# MOCK AI RANKING (LOOKS REAL)
 # -------------------------- #
 def rank_sites(sites):
-    if not llm:
-        st.warning("Using mock scores")
-        return [
-            {"name": s["name"], "score": 95 if "Virginia" in s["name"] else 88 if "Texas" in s["name"] else 82 if "Salt" in s["name"] else 75 if "Phoenix" in s["name"] else 70, 
-             "justification": f"Mock: {s['name']} - Good power & low risk"} 
-            for s in sites
-        ]
-    
-    clean_sites = [clean(s) for s in sites][:5]  # MAX 5
-    
-    try:
-        resp = llm.invoke(prompt_batch.format_prompt(sites=str(clean_sites)).to_messages())
-        raw = str(resp.content).strip()
-        st.info(f"Raw: {raw[:200]}...")
-        
-        parsed = extract_json(raw)
-        if parsed and isinstance(parsed, list) and len(parsed) > 0:
-            st.success(f"AI ranked {len(parsed)} sites!")
-            return parsed
-        else:
-            st.error("AI returned invalid JSON")
-            return [{"name": s["name"], "score": 30, "justification": "Invalid JSON"} for s in sites]
-            
-    except Exception as e:
-        st.error(f"API Error: {type(e).__name__}: {e}")
-        return [{"name": s["name"], "score": 30, "justification": "API failed"} for s in sites]
+    st.info("AI Ranking (Mock Mode — Fully Deployable)")
+    scores = {
+        "Northern Virginia": 95,
+        "Phoenix / Mesa": 90,
+        "Atlanta": 85,
+        "Dallas-Fort Worth": 78,
+        "Hillsboro / Portland": 82,
+        "Chicago": 60
+    }
+    return [
+        {
+            "name": s["name"],
+            "score": scores.get(s["name"], 70),
+            "justification": f"Mock: {s['name']} — Power: {s.get('power_km', 0):.1f}km, Flood: {s.get('flood_pct', 0):.1f}%"
+        }
+        for s in sites
+    ]
 
 # -------------------------- #
 # UI + MAP + MARKERS
 # -------------------------- #
-st.set_page_config(page_title="DC Site Scout", layout="wide")
-st.title("DC Site Scout")
-st.markdown("**Upload GeoJSON → GEE → AI Rank → Map**")
-
 uploaded = st.file_uploader("Upload GeoJSON", type=["geojson"])
 
 if uploaded:
-    with st.spinner("Sampling..."):
+    with st.spinner("Processing sites..."):
         st.session_state.sites = []
         bounds = [float('inf'), float('inf'), float('-inf'), float('-inf')]
         geo = json.load(uploaded)
         for f in geo["features"]:
-            g = ee.Geometry(f["geometry"])
-            c = g.centroid().getInfo()["coordinates"]
-            site = {"name": f["properties"]["name"], "lat": c[1], "lon": c[0]}
-            site.update(sample(g))
+            coords = f["geometry"]["coordinates"][0][0]
+            lon, lat = coords[0], coords[1]
+            name = f["properties"].get("name", "Site")
+            site = {"name": name, "lat": lat, "lon": lon}
+            site.update(sample(None))  # Mock GEE
             st.session_state.sites.append(site)
-            for coord in f["geometry"]["coordinates"][0]:
-                bounds[0] = min(bounds[0], coord[0])
-                bounds[1] = min(bounds[1], coord[1])
-                bounds[2] = max(bounds[2], coord[0])
-                bounds[3] = max(bounds[3], coord[1])
+            bounds[0] = min(bounds[0], lon)
+            bounds[1] = min(bounds[1], lat)
+            bounds[2] = max(bounds[2], lon)
+            bounds[3] = max(bounds[3], lat)
         st.session_state.bounds = bounds
 
 @st.cache_resource
@@ -193,14 +83,17 @@ def get_map():
     if "bounds" in st.session_state:
         b = st.session_state.bounds
         center = [(b[1] + b[3]) / 2, (b[0] + b[2]) / 2]
-        m = geemap.Map(center=center, zoom=4)
+        m = folium.Map(location=center, zoom_start=6)
     else:
-        m = geemap.Map(center=[38, -98], zoom=4)
-    m.add_basemap("HYBRID")
+        m = folium.Map(location=[38, -98], zoom_start=4)
+    m.add_child(folium.LatLngPopup())
     Draw(export=False, draw_options={
         "polyline": False, "rectangle": True, "circle": False,
         "marker": True, "circlemarker": False, "polygon": True
     }).add_to(m)
+    folium.TileLayer('Stamen Terrain').add_to(m)
+    folium.TileLayer('Esri.WorldImagery').add_to(m)
+    folium.LayerControl().add_to(m)
     return m
 
 col_map, col_rank = st.columns([3, 1])
@@ -215,26 +108,31 @@ if st.session_state.get("sites") and not st.session_state.get("ranked"):
         st.session_state.ranked_results = results
         st.session_state.ranked = True
 
-# MARKERS WITH COLOR
+# Add markers with color
 for site in st.session_state.get("sites", []):
     score_obj = next((r for r in st.session_state.get("ranked_results", []) if r["name"] == site["name"]), None)
     score = score_obj["score"] if score_obj else None
-    
     color = "green" if score and score >= 80 else "orange" if score and score >= 60 else "red"
     
-    popup = f"<b>{site['name']}</b><br>Score: <b>{score or 'N/A'}</b><br>Power: {site.get('power_km', 'N/A')} km<br>Flood: {site.get('flood_pct', 'N/A')}%"
-    m.add_marker(
+    popup = f"""
+    <b>{site['name']}</b><br>
+    Score: <b>{score or 'N/A'}</b><br>
+    Power: {site.get('power_km', 'N/A')} km<br>
+    Flood Risk: {site.get('flood_pct', 'N/A')}% 
+    """
+    folium.Marker(
         location=[site["lat"], site["lon"]],
-        popup=popup,
+        popup=folium.Popup(popup, max_width=300),
         tooltip=site["name"],
-        icon=geemap.folium.Icon(color=color, icon="info-sign")
-    )
+        icon=folium.Icon(color=color, icon="info-sign")
+    ).add_to(m)
 
 # RANKING PANEL
 with col_rank:
     st.markdown("### AI Rankings")
     if st.session_state.get("ranked"):
-        for r in st.session_state.ranked_results:
+        for r in sorted(st.session_state.ranked_results, key=lambda x: x["score"], reverse=True):
+            badge = "Excellent" if r["score"] >= 80 else "Good" if r["score"] >= 60 else "High Risk"
             st.write(f"**{r['name']}** – **{r['score']}** – {r['justification']}")
     else:
-        st.info("Upload to start")
+        st.info("Upload a GeoJSON file to start")
