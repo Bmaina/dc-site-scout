@@ -86,16 +86,23 @@ def get_map():
         m = folium.Map(location=center, zoom_start=6)
     else:
         m = folium.Map(location=[38, -98], zoom_start=4)
-    m.add_child(folium.LatLngPopup())
-    Draw(export=False, draw_options={
-        "polyline": False, "rectangle": True, "circle": False,
-        "marker": True, "circlemarker": False, "polygon": True
-    }).add_to(m)
-    folium.TileLayer('Stamen Terrain').add_to(m)
-    folium.TileLayer('Esri.WorldImagery').add_to(m)
+    
+    # Fixed: Stamen Terrain with attribution
+    folium.TileLayer(
+        tiles='https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg',
+        attr='Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.',
+        name='Stamen Terrain'
+    ).add_to(m)
+    
+    # Fixed: Esri World Imagery with attribution
+    folium.TileLayer(
+        tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attr='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        name='Esri World Imagery'
+    ).add_to(m)
+
     folium.LayerControl().add_to(m)
     return m
-
 col_map, col_rank = st.columns([3, 1])
 
 with col_map:
