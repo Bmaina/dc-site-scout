@@ -3,14 +3,17 @@
 import streamlit as st
 import os
 import json
-ee = geemap.ee
 import geemap.foliumap as geemap
+# Use geemap's built-in Earth Engine (pre-installed on Streamlit Cloud)
+ee = geemap.ee
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from streamlit_folium import st_folium
 from folium.plugins import Draw
 import re
 
+import ee
+ee.Initialize()  # Pre-authenticated on Cloud
 
 # APP HEADER (LIVE VERSION)
 # -------------------------- #
