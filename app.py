@@ -14,6 +14,14 @@ import re
 
 # APP HEADER (LIVE VERSION)
 # -------------------------- #
+
+st.set_page_config(
+    page_title="DC Site Scout",
+    page_icon="rocket",   # ← ADDS ROCKET ICON TO BROWSER TAB
+    layout="wide"
+)
+
+
 st.set_page_config(page_title="DC Site Scout", layout="wide")
 st.title("DC Site Scout")
 st.markdown("""
