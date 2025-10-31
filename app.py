@@ -3,7 +3,7 @@
 import streamlit as st
 import os
 import json
-import ee
+ee = geemap.ee
 import geemap.foliumap as geemap
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
@@ -41,12 +41,10 @@ def init_ee():
         st.success("Earth Engine ready")
         return True
     except Exception as e:
-        st.error(f"EE error: {e}")
+        st.error("GEE not available on Streamlit Cloud")
+        st.info("Local testing only")
         return False
-
-if not init_ee():
-    st.stop()
-
+    
 # -------------------------- #
 # ANTHROPIC LLM (GUARANTEED WORKING MODEL)
 # -------------------------- #
