@@ -1,20 +1,8 @@
-# -------------------------- #
-# APP HEADER (LIVE VERSION)
-# -------------------------- #
-st.set_page_config(page_title="DC Site Scout", layout="wide")
-st.title("DC Site Scout")
-st.markdown("""
-**AI-Powered Data Center Site Selection**  
-Upload land → Get AI-ranked sites in 10 seconds  
-[Live Demo](https://your-streamlit-link-here) · [GitHub](#)
-""")
-
-
 
 # app.py
+import streamlit as st
 import os
 import json
-import streamlit as st
 import ee
 import geemap.foliumap as geemap
 from langchain_anthropic import ChatAnthropic
@@ -22,6 +10,18 @@ from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTempla
 from streamlit_folium import st_folium
 from folium.plugins import Draw
 import re
+
+
+# APP HEADER (LIVE VERSION)
+# -------------------------- #
+st.set_page_config(page_title="DC Site Scout", layout="wide")
+st.title("DC Site Scout")
+st.markdown("""
+**AI-Powered Data Center Site Selection**  
+Upload land → Get AI-ranked sites in 10 seconds  
+[Live Demo](https://dc-site-scout.streamlit.app) · [GitHub](https://github.com/yourname/dc-site-scout)
+""", unsafe_allow_html=True)
+
 
 # -------------------------- #
 # EARTH ENGINE
