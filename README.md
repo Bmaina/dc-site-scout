@@ -1,3 +1,6 @@
+
+<image-card alt="DC Site Scout" src="screenshot.png" ></image-card>
+
 # DC Site Scout  
 **AI-Powered Data Center Site Selection**
 
